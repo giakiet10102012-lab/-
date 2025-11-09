@@ -67,6 +67,8 @@
 
   <button id="saveBtn">Lưu</button>
   <button id="checkBtn">Kiểm tra</button>
+  <button id="deductBtn">Trừ số dư</button>
+  <input type="text" id="deductAmount" placeholder="Nhập số tiền muốn trừ">
 
   <div id="result" class="output"></div>
 
@@ -78,7 +80,6 @@
     let codes = [];
     let pendingKeys = JSON.parse(localStorage.getItem('pendingKeys') || '[]');
 
-    // Nạp danh sách mã từ LocalStorage nếu có
     const savedCodes = localStorage.getItem('codes');
     if (savedCodes) codes = JSON.parse(savedCodes);
 
@@ -89,7 +90,6 @@
       reader.onload = function(e) {
         codes = e.target.result.split(/\r?\n/).filter(line => line.trim() !== '');
         localStorage.setItem('codes', JSON.stringify(codes));
-        // Thêm các key mới vào pending nếu chưa được lưu số dư
         codes.forEach(code => {
           if(!localStorage.getItem(code) && !pendingKeys.includes(code)) pendingKeys.push(code);
         });
@@ -124,6 +124,16 @@
       return isNaN(num) ? null : num;
     }
 
+    function updatePending(code, money){
+      if(money <= 0){
+        if(!pendingKeys.includes(code)) pendingKeys.push(code);
+      } else {
+        const index = pendingKeys.indexOf(code);
+        if(index !== -1) pendingKeys.splice(index,1);
+      }
+      localStorage.setItem('pendingKeys', JSON.stringify(pendingKeys));
+    }
+
     document.getElementById('saveBtn').addEventListener('click', function() {
       const code = document.getElementById('codeInput').value.trim();
       const moneyInput = document.getElementById('extraMoney').value.trim();
@@ -135,15 +145,7 @@
       }
 
       localStorage.setItem(code, money);
-
-      // Quản lý trạng thái chờ
-      if(money === 0){
-        if(!pendingKeys.includes(code)) pendingKeys.push(code);
-      } else {
-        const index = pendingKeys.indexOf(code);
-        if(index !== -1) pendingKeys.splice(index,1);
-      }
-      localStorage.setItem('pendingKeys', JSON.stringify(pendingKeys));
+      updatePending(code, money);
 
       document.getElementById('result').textContent = `Đã lưu mã ${code} với số tiền thừa ${money.toLocaleString('vi-VN')}₫.`;
     });
@@ -154,17 +156,39 @@
         alert('Hãy nhập mã để kiểm tra.');
         return;
       }
-      const savedMoney = localStorage.getItem(code);
-      if(savedMoney){
-        const moneyVal = parseInt(savedMoney);
+      const savedMoney = parseInt(localStorage.getItem(code));
+      if(!isNaN(savedMoney)){
         if(pendingKeys.includes(code)){
           document.getElementById('result').textContent = `Mã ${code} đang ở trạng thái CHỜ.`;
         } else {
-          document.getElementById('result').textContent = `Mã ${code} có số tiền thừa là ${moneyVal.toLocaleString('vi-VN')}₫.`;
+          document.getElementById('result').textContent = `Mã ${code} có số tiền thừa là ${savedMoney.toLocaleString('vi-VN')}₫.`;
         }
       } else {
         document.getElementById('result').textContent = `Không tìm thấy mã ${code} trong dữ liệu đã lưu.`;
       }
+    });
+
+    document.getElementById('deductBtn').addEventListener('click', function(){
+      const code = document.getElementById('codeInput').value.trim();
+      const deductInput = document.getElementById('deductAmount').value.trim();
+      const deductMoney = parseMoney(deductInput);
+
+      if(!code || deductMoney === null){
+        alert('Hãy nhập mã và số tiền muốn trừ hợp lệ.');
+        return;
+      }
+
+      let savedMoney = parseInt(localStorage.getItem(code));
+      if(isNaN(savedMoney)){
+        alert('Mã không tồn tại hoặc chưa được lưu.');
+        return;
+      }
+
+      const newMoney = Math.max(0, savedMoney - deductMoney);
+      localStorage.setItem(code, newMoney);
+      updatePending(code, newMoney);
+
+      document.getElementById('result').textContent = `Đã trừ ${deductMoney.toLocaleString('vi-VN')}₫ từ mã ${code}. Số dư hiện tại: ${newMoney.toLocaleString('vi-VN')}₫.`;
     });
   </script>
 </body>
