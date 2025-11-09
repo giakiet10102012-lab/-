@@ -1,4 +1,3 @@
-<!-- index.html để lưu trên GitHub Pages -->
 <!DOCTYPE html>
 <html lang="vi">
 <head>
@@ -8,8 +7,8 @@
   <style>
     body {
       font-family: Arial, sans-serif;
-      background: #f3f4f6;
-      color: #333;
+      background: #1e1e1e;
+      color: #f0f0f0;
       padding: 20px;
       max-width: 600px;
       margin: auto;
@@ -19,8 +18,10 @@
       margin: 8px 0;
       padding: 10px;
       border-radius: 6px;
-      border: 1px solid #ccc;
+      border: 1px solid #555;
       font-size: 16px;
+      background-color: #333;
+      color: #f0f0f0;
     }
     button {
       background-color: #4CAF50;
@@ -34,14 +35,15 @@
     .output {
       margin-top: 15px;
       font-weight: bold;
-      background: #e0ffe0;
+      background: #444;
+      color: #fff;
       padding: 10px;
       border-radius: 6px;
     }
     footer {
       text-align: center;
       margin-top: 40px;
-      color: #777;
+      color: #aaa;
       font-size: 14px;
     }
   </style>
@@ -51,6 +53,7 @@
 
   <h3>Tải file mã (mỗi dòng 1 mã):</h3>
   <input type="file" id="fileInput" accept=".txt">
+  <button id="clearCodes">Xóa danh sách mã đã lưu</button>
 
   <h3>Chọn mã ngẫu nhiên:</h3>
   <button id="randomBtn">Chọn ngẫu nhiên</button>
@@ -73,6 +76,11 @@
 
   <script>
     let codes = [];
+    let pendingKeys = JSON.parse(localStorage.getItem('pendingKeys') || '[]');
+
+    // Nạp danh sách mã từ LocalStorage nếu có
+    const savedCodes = localStorage.getItem('codes');
+    if (savedCodes) codes = JSON.parse(savedCodes);
 
     document.getElementById('fileInput').addEventListener('change', function(event) {
       const file = event.target.files[0];
@@ -80,9 +88,23 @@
       const reader = new FileReader();
       reader.onload = function(e) {
         codes = e.target.result.split(/\r?\n/).filter(line => line.trim() !== '');
-        alert(`Đã tải ${codes.length} mã thành công!`);
+        localStorage.setItem('codes', JSON.stringify(codes));
+        // Thêm các key mới vào pending nếu chưa được lưu số dư
+        codes.forEach(code => {
+          if(!localStorage.getItem(code) && !pendingKeys.includes(code)) pendingKeys.push(code);
+        });
+        localStorage.setItem('pendingKeys', JSON.stringify(pendingKeys));
+        alert(`Đã tải ${codes.length} mã thành công và lưu vào bộ nhớ!`);
       };
       reader.readAsText(file);
+    });
+
+    document.getElementById('clearCodes').addEventListener('click', function() {
+      localStorage.removeItem('codes');
+      localStorage.removeItem('pendingKeys');
+      codes = [];
+      pendingKeys = [];
+      alert('Đã xóa danh sách mã đã lưu.');
     });
 
     document.getElementById('randomBtn').addEventListener('click', function() {
@@ -96,37 +118,50 @@
 
     function parseMoney(value) {
       value = value.toLowerCase().replace(/\s|\.|,/g, '');
-      if (value.endsWith('k')) {
-        return parseInt(value.replace('k', '')) * 1000;
-      }
-      if (value.endsWith('đ') || value.endsWith('d')) {
-        value = value.replace(/[đd]/g, '');
-      }
+      if (value.endsWith('k')) return parseInt(value.replace('k','')) * 1000;
+      if (value.endsWith('đ') || value.endsWith('d')) value = value.replace(/[đd]/g, '');
       const num = parseInt(value);
       return isNaN(num) ? null : num;
     }
 
     document.getElementById('saveBtn').addEventListener('click', function() {
       const code = document.getElementById('codeInput').value.trim();
-      let moneyInput = document.getElementById('extraMoney').value.trim();
+      const moneyInput = document.getElementById('extraMoney').value.trim();
       const money = parseMoney(moneyInput);
-      if (!code || money === null) {
-        alert('Hãy nhập mã và số tiền hợp lệ (vd: 10k, 10000, 50.000, ...).');
+
+      if(!code || money === null){
+        alert('Hãy nhập mã và số tiền hợp lệ (vd: 10k, 10000, 50.000, ...)');
         return;
       }
+
       localStorage.setItem(code, money);
+
+      // Quản lý trạng thái chờ
+      if(money === 0){
+        if(!pendingKeys.includes(code)) pendingKeys.push(code);
+      } else {
+        const index = pendingKeys.indexOf(code);
+        if(index !== -1) pendingKeys.splice(index,1);
+      }
+      localStorage.setItem('pendingKeys', JSON.stringify(pendingKeys));
+
       document.getElementById('result').textContent = `Đã lưu mã ${code} với số tiền thừa ${money.toLocaleString('vi-VN')}₫.`;
     });
 
     document.getElementById('checkBtn').addEventListener('click', function() {
       const code = document.getElementById('codeInput').value.trim();
-      if (!code) {
+      if(!code){
         alert('Hãy nhập mã để kiểm tra.');
         return;
       }
       const savedMoney = localStorage.getItem(code);
-      if (savedMoney) {
-        document.getElementById('result').textContent = `Mã ${code} có số tiền thừa là ${parseInt(savedMoney).toLocaleString('vi-VN')}₫.`;
+      if(savedMoney){
+        const moneyVal = parseInt(savedMoney);
+        if(pendingKeys.includes(code)){
+          document.getElementById('result').textContent = `Mã ${code} đang ở trạng thái CHỜ.`;
+        } else {
+          document.getElementById('result').textContent = `Mã ${code} có số tiền thừa là ${moneyVal.toLocaleString('vi-VN')}₫.`;
+        }
       } else {
         document.getElementById('result').textContent = `Không tìm thấy mã ${code} trong dữ liệu đã lưu.`;
       }
